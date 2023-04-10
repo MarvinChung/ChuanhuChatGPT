@@ -25,6 +25,164 @@ from .config import retrieve_proxy
 from modules import config
 from .base_model import BaseLLMModel, ModelType
 
+class PlayGroundClient(BaseLLMModel):
+    def __init__(
+        self,
+        model_name,
+        api_key,
+        system_prompt=INITIAL_SYSTEM_PROMPT,
+        temperature=1.0,
+        top_p=1.0,
+    ) -> None:
+        super().__init__(
+            model_name=model_name,
+            temperature=temperature,
+            top_p=top_p,
+            system_prompt=system_prompt,
+        )
+        self.api_key = api_key
+        self.need_api_key = True
+        self._refresh_header()
+
+    def get_answer_stream_iter(self):
+        response = self._get_response(stream=True)
+        if response is not None:
+            iter = self._decode_chat_response(response)
+            partial_text = ""
+            for i in iter:
+                partial_text += i
+                yield partial_text
+        else:
+            yield STANDARD_ERROR_MSG + GENERAL_ERROR_MSG
+
+    def get_answer_at_once(self):
+        response = self._get_response()
+        response = json.loads(response.text)
+        content = response["choices"][0]["message"]["content"]
+        total_token_count = response["usage"]["total_tokens"]
+        return content, total_token_count
+
+    def count_token(self, user_input):
+        input_token_count = count_token(construct_user(user_input))
+        if self.system_prompt is not None and len(self.all_token_counts) == 0:
+            system_prompt_token_count = count_token(
+                construct_system(self.system_prompt)
+            )
+            return input_token_count + system_prompt_token_count
+        return input_token_count
+
+    def billing_info(self):
+        return "unlimited"
+
+    def set_token_upper_limit(self, new_upper_limit):
+        pass
+
+    def set_key(self, new_access_key):
+        self.api_key = new_access_key.strip()
+        self._refresh_header()
+        msg = f"API密鑰更改為了{hide_middle_chars(self.api_key)}"
+        logging.info(msg)
+        return msg
+
+    @shared.state.switching_api_key  # 在不开启多账号模式的时候，这个装饰器不会起作用
+    def _get_response(self, stream=False):
+        openai_api_key = self.api_key
+        system_prompt = self.system_prompt
+        history = self.history
+        logging.debug(colorama.Fore.YELLOW + f"{history}" + colorama.Fore.RESET)
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {openai_api_key}",
+        }
+
+        if system_prompt is not None:
+            history = [construct_system(system_prompt), *history]
+
+        payload = {
+            "model": self.model_name,
+            "model_object": "text completion",
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "prompts": self.n_choices,
+            "presence_penalty": self.presence_penalty,
+            "repitition_penalty": self.frequency_penalty
+        }
+
+        if self.max_generation_token is not None:
+            payload["max_tokens"] = self.max_generation_token
+        if self.stop_sequence is not None:
+            payload["stop"] = self.stop_sequence
+        if self.logit_bias is not None:
+            payload["logit_bias"] = self.logit_bias
+        if self.user_identifier is not None:
+            payload["user"] = self.user_identifier
+
+        if stream:
+            timeout = TIMEOUT_STREAMING
+        else:
+            timeout = TIMEOUT_ALL
+
+        # 如果有自定义的api-host，使用自定义host发送请求，否则使用默认设置发送请求
+        if shared.state.completion_url != COMPLETION_URL:
+            logging.info(f"使用自定義API URL: {shared.state.completion_url}")
+
+        with retrieve_proxy():
+            try:
+                response = requests.post(
+                    shared.state.completion_url,
+                    headers=headers,
+                    json=payload,
+                    stream=stream,
+                    timeout=timeout,
+                )
+            except:
+                return None
+        return response
+
+    def _refresh_header(self):
+        self.headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+        }
+
+    def _get_billing_data(self, billing_url):
+        with retrieve_proxy():
+            response = requests.get(
+                billing_url,
+                headers=self.headers,
+                timeout=TIMEOUT_ALL,
+            )
+
+        if response.status_code == 200:
+            data = response.json()
+            return data
+        else:
+            raise Exception(
+                f"API request failed with status code {response.status_code}: {response.text}"
+            )
+
+    def _decode_chat_response(self, response):
+        error_msg = ""
+        for chunk in response.iter_lines():
+            if chunk:
+                chunk = chunk.decode()
+                chunk_length = len(chunk)
+                try:
+                    chunk = json.loads(chunk[6:])
+                except json.JSONDecodeError:
+                    print(f"JSON解析錯誤,收到的內容: {chunk}")
+                    error_msg+=chunk
+                    continue
+                if chunk_length > 6 and "delta" in chunk["choices"][0]:
+                    if chunk["choices"][0]["finish_reason"] == "stop":
+                        break
+                    try:
+                        yield chunk["choices"][0]["delta"]["content"]
+                    except Exception as e:
+                        # logging.error(f"Error: {e}")
+                        continue
+        if error_msg:
+            raise Exception(error_msg)
 
 class OpenAIClient(BaseLLMModel):
     def __init__(
@@ -81,10 +239,10 @@ class OpenAIClient(BaseLLMModel):
             try:
                 usage_data = self._get_billing_data(usage_url)
             except Exception as e:
-                logging.error(f"获取API使用情况失败:" + str(e))
-                return f"**获取API使用情况失败**"
+                logging.error(f"獲取API使用情況失敗:" + str(e))
+                return f"**獲取API使用情況失敗**"
             rounded_usage = "{:.5f}".format(usage_data["total_usage"] / 100)
-            return f"**本月使用金额** \u3000 ${rounded_usage}"
+            return f"**本月使用金額** \u3000 ${rounded_usage}"
         except requests.exceptions.ConnectTimeout:
             status_text = (
                 STANDARD_ERROR_MSG + CONNECTION_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
@@ -94,7 +252,7 @@ class OpenAIClient(BaseLLMModel):
             status_text = STANDARD_ERROR_MSG + READ_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
             return status_text
         except Exception as e:
-            logging.error(f"获取API使用情况失败:" + str(e))
+            logging.error(f"獲取API使用情況失敗:" + str(e))
             return STANDARD_ERROR_MSG + ERROR_RETRIEVE_MSG
 
     def set_token_upper_limit(self, new_upper_limit):
@@ -103,7 +261,7 @@ class OpenAIClient(BaseLLMModel):
     def set_key(self, new_access_key):
         self.api_key = new_access_key.strip()
         self._refresh_header()
-        msg = f"API密钥更改为了{hide_middle_chars(self.api_key)}"
+        msg = f"API密鑰更改為了{hide_middle_chars(self.api_key)}"
         logging.info(msg)
         return msg
 
@@ -148,7 +306,7 @@ class OpenAIClient(BaseLLMModel):
 
         # 如果有自定义的api-host，使用自定义host发送请求，否则使用默认设置发送请求
         if shared.state.completion_url != COMPLETION_URL:
-            logging.info(f"使用自定义API URL: {shared.state.completion_url}")
+            logging.info(f"使用自定義API URL: {shared.state.completion_url}")
 
         with retrieve_proxy():
             try:
@@ -194,7 +352,7 @@ class OpenAIClient(BaseLLMModel):
                 try:
                     chunk = json.loads(chunk[6:])
                 except json.JSONDecodeError:
-                    print(f"JSON解析错误,收到的内容: {chunk}")
+                    print(f"JSON解析錯誤,收到的內容: {chunk}")
                     error_msg+=chunk
                     continue
                 if chunk_length > 6 and "delta" in chunk["choices"][0]:
@@ -403,7 +561,7 @@ class ModelManager:
         top_p=None,
         system_prompt=None,
     ) -> BaseLLMModel:
-        msg = f"模型设置为了： {model_name}"
+        msg = f"模型設置為： {model_name}"
         model_type = ModelType.get_type(model_name)
         lora_selector_visibility = False
         lora_choices = []
@@ -414,7 +572,7 @@ class ModelManager:
         model = None
         try:
             if model_type == ModelType.OpenAI:
-                logging.info(f"正在加载OpenAI模型: {model_name}")
+                logging.info(f"正在加載OpenAI模型: {model_name}")
                 model = OpenAIClient(
                     model_name=model_name,
                     api_key=access_key,
@@ -422,18 +580,28 @@ class ModelManager:
                     temperature=temperature,
                     top_p=top_p,
                 )
+            elif model_type == ModelType.PlayGround:
+                logging.info(f"正在加載PlayGround模型: {model_name}")
+                model = PlayGroundClient(
+                    model_name=model_name,
+                    api_key=access_key,
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    top_p=top_p,
+                )
             elif model_type == ModelType.ChatGLM:
-                logging.info(f"正在加载ChatGLM模型: {model_name}")
+                logging.info(f"在加載ChatGLM模型: {model_name}")
                 model = ChatGLM_Client(model_name)
             elif model_type == ModelType.LLaMA and lora_model_path == "":
-                msg = f"现在请为 {model_name} 选择LoRA模型"
+                # msg = f"现在请为 {model_name} 选择LoRA模型"
+                msg = f"現在請為 {model_name} 選擇LoRA模型"
                 logging.info(msg)
                 lora_selector_visibility = True
                 if os.path.isdir("lora"):
                     lora_choices = get_file_names("lora", plain=True, filetypes=[""])
                 lora_choices = ["No LoRA"] + lora_choices
             elif model_type == ModelType.LLaMA and lora_model_path != "":
-                logging.info(f"正在加载LLaMA模型: {model_name} + {lora_model_path}")
+                logging.info(f"正在加載LLaMA模型: {model_name} + {lora_model_path}")
                 dont_change_lora_selector = True
                 if lora_model_path == "No LoRA":
                     lora_model_path = None
@@ -542,25 +710,25 @@ if __name__ == "__main__":
     chatbot = []
     stream = False
     # 测试账单功能
-    logging.info(colorama.Back.GREEN + "测试账单功能" + colorama.Back.RESET)
+    logging.info(colorama.Back.GREEN + "測試帳單功能" + colorama.Back.RESET)
     logging.info(client.billing_info())
     # 测试问答
-    logging.info(colorama.Back.GREEN + "测试问答" + colorama.Back.RESET)
-    question = "巴黎是中国的首都吗？"
+    logging.info(colorama.Back.GREEN + "測試問答" + colorama.Back.RESET)
+    question = "巴黎是中國的首都嗎？"
     for i in client.predict(inputs=question, chatbot=chatbot, stream=stream):
         logging.info(i)
-    logging.info(f"测试问答后history : {client.history}")
+    logging.info(f"測試問答後history : {client.history}")
     # 测试记忆力
-    logging.info(colorama.Back.GREEN + "测试记忆力" + colorama.Back.RESET)
-    question = "我刚刚问了你什么问题？"
+    logging.info(colorama.Back.GREEN + "測試記憶力" + colorama.Back.RESET)
+    question = "我剛剛問了你什麼問題？"
     for i in client.predict(inputs=question, chatbot=chatbot, stream=stream):
         logging.info(i)
-    logging.info(f"测试记忆力后history : {client.history}")
+    logging.info(f"測試記憶漏後history : {client.history}")
     # 测试重试功能
-    logging.info(colorama.Back.GREEN + "测试重试功能" + colorama.Back.RESET)
+    logging.info(colorama.Back.GREEN + "測試重試功能" + colorama.Back.RESET)
     for i in client.retry(chatbot=chatbot, stream=stream):
         logging.info(i)
-    logging.info(f"重试后history : {client.history}")
+    logging.info(f"重試後history : {client.history}")
     # # 测试总结功能
     # print(colorama.Back.GREEN + "测试总结功能" + colorama.Back.RESET)
     # chatbot, msg = client.reduce_token_size(chatbot=chatbot)

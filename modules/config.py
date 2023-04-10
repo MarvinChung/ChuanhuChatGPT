@@ -29,7 +29,7 @@ else:
     config = {}
 
 if os.path.exists("api_key.txt"):
-    logging.info("检测到api_key.txt文件，正在进行迁移...")
+    logging.info("Find api_key.txt ...")
     with open("api_key.txt", "r") as f:
         config["openai_api_key"] = f.read().strip()
     os.rename("api_key.txt", "api_key(deprecated).txt")
@@ -37,7 +37,7 @@ if os.path.exists("api_key.txt"):
         json.dump(config, f, indent=4)
 
 if os.path.exists("auth.json"):
-    logging.info("检测到auth.json文件，正在进行迁移...")
+    logging.info("Find auth.json document，moving...")
     auth_list = []
     with open("auth.json", "r", encoding='utf-8') as f:
             auth = json.load(f)
@@ -45,7 +45,7 @@ if os.path.exists("auth.json"):
                 if auth[_]["username"] and auth[_]["password"]:
                     auth_list.append((auth[_]["username"], auth[_]["password"]))
                 else:
-                    logging.error("请检查auth.json文件中的用户名和密码！")
+                    logging.error("Please check the username and password in auth.json!")
                     sys.exit(1)
     config["users"] = auth_list
     os.rename("auth.json", "auth(deprecated).json")
@@ -66,7 +66,7 @@ multi_api_key = config.get("multi_api_key", False) # 是否开启多账户机制
 if multi_api_key:
     api_key_list = config.get("api_key_list", [])
     if len(api_key_list) == 0:
-        logging.error("多账号模式已开启，但api_key_list为空，请检查config.json")
+        logging.error("multi api key mode is on but api_key_list is empty，please check config.json")
         sys.exit(1)
     shared.state.set_api_key_queue(api_key_list)
 
@@ -147,4 +147,4 @@ def update_doc_config(two_column_pdf):
     global advance_docs
     advance_docs["pdf"]["two_column"] = two_column_pdf
 
-    logging.info(f"更新后的文件参数为：{advance_docs}")
+    logging.info(f"Updated document：{advance_docs}")

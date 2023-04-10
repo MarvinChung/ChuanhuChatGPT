@@ -15,16 +15,16 @@ HISTORY_DIR = "history"
 TEMPLATES_DIR = "templates"
 
 # 错误信息
-STANDARD_ERROR_MSG = "☹️发生了错误："  # 错误信息的标准前缀
-GENERAL_ERROR_MSG = "获取对话时发生错误，请查看后台日志"
-ERROR_RETRIEVE_MSG = "请检查网络连接，或者API-Key是否有效。"
-CONNECTION_TIMEOUT_MSG = "连接超时，无法获取对话。"  # 连接超时
-READ_TIMEOUT_MSG = "读取超时，无法获取对话。"  # 读取超时
-PROXY_ERROR_MSG = "代理错误，无法获取对话。"  # 代理错误
-SSL_ERROR_PROMPT = "SSL错误，无法获取对话。"  # SSL 错误
-NO_APIKEY_MSG = "API key为空，请检查是否输入正确。"  # API key 长度不足 51 位
-NO_INPUT_MSG = "请输入对话内容。"  # 未输入对话内容
-BILLING_NOT_APPLICABLE_MSG = "模型本地运行中" # 本地运行的模型返回的账单信息
+STANDARD_ERROR_MSG = "☹️發生了錯誤"  # 错误信息的标准前缀
+GENERAL_ERROR_MSG = "獲取對話時發生錯誤，請查看後台日誌"
+ERROR_RETRIEVE_MSG = "請檢察網路連接，或者API-Key是否有效"
+CONNECTION_TIMEOUT_MSG = "連接超時，無法獲取對話"  # 连接超时
+READ_TIMEOUT_MSG = "讀取超時，無法獲取對話"  # 读取超时
+PROXY_ERROR_MSG = "代理錯誤，無法獲取對話"  # 代理错误
+SSL_ERROR_PROMPT = "SSL錯誤，無法獲取對話"  # SSL 错误
+NO_APIKEY_MSG = "API key為空，請檢查是否輸入正確"  # API key 长度不足 51 位
+NO_INPUT_MSG = "請輸入對話內容"  # 未输入对话内容
+BILLING_NOT_APPLICABLE_MSG = "模型本地運行中" # 本地运行的模型返回的账单信息
 
 TIMEOUT_STREAMING = 60  # 流式对话时的超时时间
 TIMEOUT_ALL = 200  # 非流式对话时的超时时间
@@ -35,14 +35,9 @@ CONCURRENT_COUNT = 100 # 允许同时使用的用户数量
 SIM_K = 5
 INDEX_QUERY_TEMPRATURE = 1.0
 
-CHUANHU_TITLE = """<h1 align="left">川虎Chat 🚀</h1>"""
+CHUANHU_TITLE = """<h1 align="left"> AI跟寫 </h1>"""
 CHUANHU_DESCRIPTION = """\
 <div align="center" style="margin:16px 0">
-
-由Bilibili [土川虎虎虎](https://space.bilibili.com/29125536) 和 [明昭MZhao](https://space.bilibili.com/24807452)开发
-
-访问川虎Chat的 [GitHub项目](https://github.com/GaiZhenbiao/ChuanhuChatGPT) 下载最新版脚本
-
 </div>
 """
 
@@ -58,26 +53,29 @@ APPEARANCE_SWITCHER = """
 </div>
 """
 
-SUMMARIZE_PROMPT = "你是谁？我们刚才聊了什么？"  # 总结对话时的 prompt
+SUMMARIZE_PROMPT = "您好："  # 总结对话时的 prompt
 
 MODELS = [
-    "gpt-3.5-turbo",
-    "gpt-3.5-turbo-0301",
-    "gpt-4",
-    "gpt-4-0314",
-    "gpt-4-32k",
-    "gpt-4-32k-0314",
-    "chatglm-6b",
-    "chatglm-6b-int4",
-    "chatglm-6b-int4-qe",
-    "llama-7b-hf",
-    "llama-7b-hf-int4",
-    "llama-7b-hf-int8",
-    "llama-13b-hf",
-    "llama-13b-hf-int4",
-    "llama-30b-hf",
-    "llama-30b-hf-int4",
-    "llama-65b-hf",
+    # "gpt-3.5-turbo",
+    # "gpt-3.5-turbo-0301",
+    # "gpt-4",
+    # "gpt-4-0314",
+    # "gpt-4-32k",
+    # "gpt-4-32k-0314",
+    # "chatglm-6b",
+    # "chatglm-6b-int4",
+    # "chatglm-6b-int4-qe",
+    # "llama-7b-hf",
+    # "llama-7b-hf-int4",
+    # "llama-7b-hf-int8",
+    # "llama-13b-hf",
+    # "llama-13b-hf-int4",
+    # "llama-30b-hf",
+    # "llama-30b-hf-int4",
+    # "llama-65b-hf",
+    "bloom-1b1-zh",
+    "bloom-176b",
+    "bloom-3b"
 ]  # 可选的模型
 
 os.makedirs("models", exist_ok=True)
@@ -91,12 +89,12 @@ for dir_name in os.listdir("models"):
 DEFAULT_MODEL = 0  # 默认的模型在MODELS中的序号，从0开始数
 
 MODEL_TOKEN_LIMIT = {
-    "gpt-3.5-turbo": 4096,
-    "gpt-3.5-turbo-0301": 4096,
-    "gpt-4": 8192,
-    "gpt-4-0314": 8192,
-    "gpt-4-32k": 32768,
-    "gpt-4-32k-0314": 32768
+    # "gpt-3.5-turbo": 4096,
+    # "gpt-3.5-turbo-0301": 4096,
+    # "gpt-4": 8192,
+    # "gpt-4-0314": 8192,
+    # "gpt-4-32k": 32768,
+    # "gpt-4-32k-0314": 32768
 }
 
 TOKEN_OFFSET = 1000 # 模型的token上限减去这个值，得到软上限。到达软上限之后，自动尝试减少token占用。
@@ -104,14 +102,14 @@ DEFAULT_TOKEN_LIMIT = 3000 # 默认的token上限
 REDUCE_TOKEN_FACTOR = 0.5 # 与模型token上限想乘，得到目标token数。减少token占用时，将token占用减少到目标token数以下。
 
 REPLY_LANGUAGES = [
-    "简体中文",
     "繁體中文",
+    "简体中文",
     "English",
     "日本語",
     "Español",
     "Français",
-    "Deutsch",
-    "跟随问题语言（不稳定）"
+    "Deutsch"
+    # "跟随问题语言（不稳定）"
 ]
 
 

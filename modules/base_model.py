@@ -28,6 +28,7 @@ class ModelType(Enum):
     OpenAI = 0
     ChatGLM = 1
     LLaMA = 2
+    PlayGround = 3
 
     @classmethod
     def get_type(cls, model_name: str):
@@ -39,6 +40,8 @@ class ModelType(Enum):
             model_type = ModelType.ChatGLM
         elif "llama" in model_name_lower or "alpaca" in model_name_lower:
             model_type = ModelType.LLaMA
+        elif "bloom" in model_name_lower:
+            model_type = ModelType.PlayGround
         else:
             model_type = ModelType.Unknown
         return model_type
@@ -71,7 +74,6 @@ class BaseLLMModel:
         self.system_prompt = system_prompt
         self.api_key = None
         self.need_api_key = False
-        self.single_turn = False
 
         self.temperature = temperature
         self.top_p = top_p
@@ -120,7 +122,7 @@ class BaseLLMModel:
         def get_return_value():
             return chatbot, status_text
 
-        status_text = "开始实时传输回答……"
+        status_text = "開始實時傳輸回答..."
         if fake_input:
             chatbot.append((fake_input, ""))
         else:
@@ -128,7 +130,7 @@ class BaseLLMModel:
 
         user_token_count = self.count_token(inputs)
         self.all_token_counts.append(user_token_count)
-        logging.debug(f"输入token计数: {user_token_count}")
+        logging.debug(f"輸入token計數: {user_token_count}")
 
         stream_iter = self.get_answer_stream_iter()
 
@@ -186,11 +188,11 @@ class BaseLLMModel:
         )
 
         logging.info(
-            "输入为：" + colorama.Fore.BLUE + f"{inputs}" + colorama.Style.RESET_ALL
+            "輸入為：" + colorama.Fore.BLUE + f"{inputs}" + colorama.Style.RESET_ALL
         )
         if should_check_token_count:
-            yield chatbot + [(inputs, "")], "开始生成回答……"
-        if reply_language == "跟随问题语言（不稳定）":
+            yield chatbot + [(inputs, "")], "開始生成回答..."
+        if reply_language == " 跟隨問題語言 (不穩定)":
             reply_language = "the same language as the question, such as English, 中文, 日本語, Español, Français, or Deutsch."
         old_inputs = None
         display_reference = []
@@ -198,13 +200,13 @@ class BaseLLMModel:
         if files:
             limited_context = True
             old_inputs = inputs
-            msg = "加载索引中……（这可能需要几分钟）"
+            msg = " 加載索引中... (這可能需要幾分鐘)"
             logging.info(msg)
             yield chatbot + [(inputs, "")], msg
             index = construct_index(self.api_key, file_src=files)
-            assert index is not None, "索引构建失败"
-            msg = "索引构建完成，获取回答中……"
-            if local_embedding or self.model_type != ModelType.OpenAI:
+            assert index is not None, "索引構建失敗"
+            msg = "索引構建完成，獲取回答中..."
+            if local_embedding:
                 embed_model = LangchainEmbedding(HuggingFaceEmbeddings())
             else:
                 embed_model = OpenAIEmbedding()
@@ -247,7 +249,7 @@ class BaseLLMModel:
             old_inputs = inputs
             reference_results = []
             for idx, result in enumerate(search_results):
-                logging.debug(f"搜索结果{idx + 1}：{result}")
+                logging.debug(f"搜索結果{idx + 1}：{result}")
                 domain_name = urllib3.util.parse_url(result["href"]).host
                 reference_results.append([result["body"], result["href"]])
                 display_reference.append(
@@ -286,14 +288,11 @@ class BaseLLMModel:
             yield chatbot + [(inputs, "")], status_text
             return
 
-        if self.single_turn:
-            self.history = []
-            self.all_token_counts = []
         self.history.append(construct_user(inputs))
 
         try:
             if stream:
-                logging.debug("使用流式传输")
+                logging.debug("使用stream傳輸")
                 iter = self.stream_next_chatbot(
                     inputs,
                     chatbot,
@@ -303,7 +302,7 @@ class BaseLLMModel:
                 for chatbot, status_text in iter:
                     yield chatbot, status_text
             else:
-                logging.debug("不使用流式传输")
+                logging.debug("不用stream傳輸")
                 chatbot, status_text = self.next_chatbot_at_once(
                     inputs,
                     chatbot,
@@ -317,17 +316,15 @@ class BaseLLMModel:
 
         if len(self.history) > 1 and self.history[-1]["content"] != inputs:
             logging.info(
-                "回答为："
+                "回答為："
                 + colorama.Fore.BLUE
                 + f"{self.history[-1]['content']}"
                 + colorama.Style.RESET_ALL
             )
 
         if limited_context:
-            # self.history = self.history[-4:]
-            # self.all_token_counts = self.all_token_counts[-2:]
-            self.history = []
-            self.all_token_counts = []
+            self.history = self.history[-4:]
+            self.all_token_counts = self.all_token_counts[-2:]
 
         max_token = self.token_upper_limit - TOKEN_OFFSET
 
@@ -342,7 +339,7 @@ class BaseLLMModel:
                 del self.all_token_counts[0]
                 del self.history[:2]
             logging.info(status_text)
-            status_text = f"为了防止token超限，模型忘记了早期的 {count} 轮对话"
+            status_text = f"為了防止token超限，模型忘記了早期的 {count} 輪對話 "
             yield chatbot, status_text
 
     def retry(
@@ -353,7 +350,7 @@ class BaseLLMModel:
         files=None,
         reply_language="中文",
     ):
-        logging.debug("重试中……")
+        logging.debug("重試中...")
         if len(self.history) == 0:
             yield chatbot, f"{STANDARD_ERROR_MSG}上下文是空的"
             return
@@ -371,7 +368,7 @@ class BaseLLMModel:
         )
         for x in iter:
             yield x
-        logging.debug("重试完毕")
+        logging.debug("重試完畢")
 
     # def reduce_token_size(self, chatbot):
     #     logging.info("开始减少token数量……")
@@ -398,7 +395,7 @@ class BaseLLMModel:
 
     def set_token_upper_limit(self, new_upper_limit):
         self.token_upper_limit = new_upper_limit
-        print(f"token上限设置为{new_upper_limit}")
+        print(f"token上限設置為{new_upper_limit}")
 
     def set_temperature(self, new_temperature):
         self.temperature = new_temperature
@@ -441,12 +438,9 @@ class BaseLLMModel:
 
     def set_key(self, new_access_key):
         self.api_key = new_access_key.strip()
-        msg = f"API密钥更改为了{hide_middle_chars(self.api_key)}"
+        msg = f"API密鑰更改為了{hide_middle_chars(self.api_key)}"
         logging.info(msg)
         return msg
-
-    def set_single_turn(self, new_single_turn):
-        self.single_turn = new_single_turn
 
     def reset(self):
         self.history = []
@@ -462,19 +456,19 @@ class BaseLLMModel:
 
     def delete_last_conversation(self, chatbot):
         if len(chatbot) > 0 and STANDARD_ERROR_MSG in chatbot[-1][1]:
-            msg = "由于包含报错信息，只删除chatbot记录"
+            msg = "由於包含報錯信息，只刪除chatbot紀錄"
             chatbot.pop()
             return chatbot, self.history
         if len(self.history) > 0:
             self.history.pop()
             self.history.pop()
         if len(chatbot) > 0:
-            msg = "删除了一组chatbot对话"
+            msg = "刪除了一組chatbot對話"
             chatbot.pop()
         if len(self.all_token_counts) > 0:
-            msg = "删除了一组对话的token计数记录"
+            msg = "刪除了一組對話的token技術紀錄"
             self.all_token_counts.pop()
-        msg = "删除了一组对话"
+        msg = "刪除了一組對話"
         return chatbot, msg
 
     def token_message(self, token_lst=None):
@@ -483,7 +477,7 @@ class BaseLLMModel:
         token_sum = 0
         for i in range(len(token_lst)):
             token_sum += sum(token_lst[: i + 1])
-        return f"Token 计数: {sum(token_lst)}，本次对话累计消耗了 {token_sum} tokens"
+        return f"Token 計數: {sum(token_lst)}，本次對話累計消耗了 {token_sum} tokens"
 
     def save_chat_history(self, filename, chatbot, user_name):
         if filename == "":
@@ -500,7 +494,7 @@ class BaseLLMModel:
         return save_file(filename, self.system_prompt, self.history, chatbot, user_name)
 
     def load_chat_history(self, filename, chatbot, user_name):
-        logging.debug(f"{user_name} 加载对话历史中……")
+        logging.debug(f"{user_name} 加載對話歷史中...")
         if type(filename) != str:
             filename = filename.name
         try:
@@ -508,7 +502,7 @@ class BaseLLMModel:
                 json_s = json.load(f)
             try:
                 if type(json_s["history"][0]) == str:
-                    logging.info("历史记录格式为旧版，正在转换……")
+                    logging.info("歷史記錄格式為舊版，正在轉換...")
                     new_history = []
                     for index, item in enumerate(json_s["history"]):
                         if index % 2 == 0:
@@ -520,9 +514,9 @@ class BaseLLMModel:
             except:
                 # 没有对话历史
                 pass
-            logging.debug(f"{user_name} 加载对话历史完毕")
+            logging.debug(f"{user_name} 加載對話歷史完畢")
             self.history = json_s["history"]
             return filename, json_s["system"], json_s["chatbot"]
         except FileNotFoundError:
-            logging.warning(f"{user_name} 没有找到对话历史文件，不执行任何操作")
+            logging.warning(f"{user_name} 沒有找到對話歷史文件，不執行任何操作")
             return filename, self.system_prompt, chatbot

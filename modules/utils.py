@@ -154,7 +154,7 @@ def construct_assistant(text):
 
 
 def save_file(filename, system, history, chatbot, user_name):
-    logging.debug(f"{user_name} 保存对话历史中……")
+    logging.debug(f"{user_name} 保存對話歷史中...")
     os.makedirs(os.path.join(HISTORY_DIR, user_name), exist_ok=True)
     if filename.endswith(".json"):
         json_s = {"system": system, "history": history, "chatbot": chatbot}
@@ -167,7 +167,7 @@ def save_file(filename, system, history, chatbot, user_name):
             md_s += f"\n{data['role']}: \n- {data['content']} \n"
         with open(os.path.join(HISTORY_DIR, user_name, filename), "w", encoding="utf8") as f:
             f.write(md_s)
-    logging.debug(f"{user_name} 保存对话历史完毕")
+    logging.debug(f"{user_name} 完成保存對話歷史")
     return os.path.join(HISTORY_DIR, user_name, filename)
 
 
@@ -176,7 +176,7 @@ def sorted_by_pinyin(list):
 
 
 def get_file_names(dir, plain=False, filetypes=[".json"]):
-    logging.debug(f"获取文件名列表，目录为{dir}，文件类型为{filetypes}，是否为纯文本列表{plain}")
+    logging.debug(f"獲取文件名列表，目錄為{dir}，文件類型為{filetypes}，是否為純文本列表{plain}")
     files = []
     try:
         for type in filetypes:
@@ -194,12 +194,12 @@ def get_file_names(dir, plain=False, filetypes=[".json"]):
 
 
 def get_history_names(plain=False, user_name=""):
-    logging.debug(f"从用户 {user_name} 中获取历史记录文件名列表")
+    logging.debug(f"从從用戶 {user_name} 中獲取歷史紀錄文件名列表")
     return get_file_names(os.path.join(HISTORY_DIR, user_name), plain)
 
 
 def load_template(filename, mode=0):
-    logging.debug(f"加载模板文件{filename}，模式为{mode}（0为返回字典和下拉菜单，1为返回下拉菜单，2为返回字典）")
+    logging.debug(f"加載模板文件{filename}，模式為{mode}（0為返回字典和下拉菜單，1為返回下拉菜單，2為返回字典）")
     lines = []
     if filename.endswith(".json"):
         with open(os.path.join(TEMPLATES_DIR, filename), "r", encoding="utf8") as f:
@@ -224,12 +224,12 @@ def load_template(filename, mode=0):
 
 
 def get_template_names(plain=False):
-    logging.debug("获取模板文件名列表")
+    logging.debug("獲取模板文件名列表")
     return get_file_names(TEMPLATES_DIR, plain, filetypes=[".csv", "json"])
 
 
 def get_template_content(templates, selection, original_system_prompt):
-    logging.debug(f"应用模板中，选择为{selection}，原始系统提示为{original_system_prompt}")
+    logging.debug(f"應用模板中，選擇為{selection}，原始系統提示為{original_system_prompt}")
     try:
         return templates[selection]
     except:
@@ -249,7 +249,7 @@ def reset_default():
 
 def change_api_host(host):
     shared.state.set_api_host(host)
-    msg = f"API-Host更改为了{host}"
+    msg = f"API-Host更改成了{host}"
     logging.info(msg)
     return msg
 
@@ -257,7 +257,7 @@ def change_api_host(host):
 def change_proxy(proxy):
     retrieve_proxy(proxy)
     os.environ["HTTPS_PROXY"] = proxy
-    msg = f"代理更改为了{proxy}"
+    msg = f"代理更改成了{proxy}"
     logging.info(msg)
     return msg
 
@@ -276,7 +276,7 @@ def hide_middle_chars(s):
 
 def submit_key(key):
     key = key.strip()
-    msg = f"API密钥更改为了{hide_middle_chars(key)}"
+    msg = f"API密鑰更改成了{hide_middle_chars(key)}"
     logging.info(msg)
     return key, msg
 
@@ -292,21 +292,22 @@ def get_geoip():
             response = requests.get("https://ipapi.co/json/", timeout=5)
         data = response.json()
     except:
-        data = {"error": True, "reason": "连接ipapi失败"}
+        data = {"error": True, "reason": "連接ipapi失敗"}
     if "error" in data.keys():
-        logging.warning(f"无法获取IP地址信息。\n{data}")
+        logging.warning(f"無法獲取IP地址信息。\n{data}")
         if data["reason"] == "RateLimited":
             return (
-                f"获取IP地理位置失败，因为达到了检测IP的速率限制。聊天功能可能仍然可用。"
+                f"獲取IP地理位置失敗，因為達到了檢測IP的速率限制，聊天功能可能無法使用"
             )
         else:
-            return f"获取IP地理位置失败。原因：{data['reason']}。你仍然可以使用聊天功能。"
+            return f"獲取IP地理位置失敗。原因：{data['reason']}。你仍可使用聊天功能"
     else:
         country = data["country_name"]
-        if country == "China":
-            text = "**您的IP区域：中国。请立即检查代理设置，在不受支持的地区使用API可能导致账号被封禁。**"
-        else:
-            text = f"您的IP区域：{country}。"
+        # if country == "China":
+        #     text = "**您的IP區域：中國。請立即檢查代理設置，再不受支持的地區使用API可能導致帳號被封禁。**"
+        # else:
+        #     text = f"您的IP區域：{country}。"
+        text = f"您的IP區域：{country}。"
         logging.info(text)
         return text
 
@@ -326,7 +327,7 @@ def find_n(lst, max_num):
 
 
 def start_outputing():
-    logging.debug("显示取消按钮，隐藏发送按钮")
+    logging.debug("顯示取消按鈕，隱藏發送按鈕")
     return gr.Button.update(visible=False), gr.Button.update(visible=True)
 
 
@@ -338,7 +339,7 @@ def end_outputing():
 
 
 def cancel_outputing():
-    logging.info("中止输出……")
+    logging.info("終止輸出...")
     shared.state.interrupt()
 
 
