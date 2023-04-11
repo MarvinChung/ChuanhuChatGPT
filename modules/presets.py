@@ -73,9 +73,9 @@ MODELS = [
     "llama-30b-hf",
     "llama-30b-hf-int4",
     "llama-65b-hf",
-    # "bloom-1b1-zh",
-    # "bloom-176b",
-    # "bloom-3b"
+    "bloom-zh-1b1",
+    "bloom-176b",
+    "bloom-zh-3b"
 ]  # 可选的模型
 
 os.makedirs("models", exist_ok=True)

@@ -28,6 +28,7 @@ from .base_model import BaseLLMModel, ModelType
 import asyncio
 import requests
 from typing import Dict
+import time
 
 class PlayGroundClient(BaseLLMModel):
     def __init__(
@@ -89,34 +90,6 @@ class PlayGroundClient(BaseLLMModel):
         logging.info(msg)
         return msg
 
-    def fetch_task_with_backoff(uuid: str, api_key: str, retry_options: Dict[str, int]) -> requests.Response:
-        retries = 0
-        logging.info("fetch_task_with_backoff")
-
-        def try_fetch() -> requests.Response:
-            nonlocal retries
-            try:
-                headers = {
-                    'accept': 'application/json',
-                    'Authorization': f'Bearer {api_key}'
-                }
-                response = requests.get(f'https://create.mtkresearch.com/llm/api/v2/tasks/{uuid}', headers=headers)
-                json_response = response.json()
-                if json_response['task']['status'] == 'READY':
-                    return 
-                else:
-                    if retries < retry_options['maxNumberOfRetry']:
-                        retries += 1
-                        wait_time = min(retry_options['initialDelay'] * 2 ** (retries - 1), retry_options['maxDelay'])
-                        time.sleep(wait_time)
-                        return try_fetch()
-                    else:
-                        raise Exception('Max number of retries reached')
-            except Exception as error:
-                raise error
-
-        return try_fetch()
-
     @shared.state.switching_api_key  # 在不开启多账号模式的时候，这个装饰器不会起作用
     def _get_response(self, stream=False):
         logging.info("hello get response")
@@ -130,22 +103,23 @@ class PlayGroundClient(BaseLLMModel):
         }
 
         logging.info(system_prompt)
+        logging.info(history[-1])
 
         if system_prompt is not None:
             history = [construct_system(system_prompt), *history]
 
         payload = {
-            "model": self.model_name,
+            "model_type": self.model_name,
             "model_object": "text completion",
             "temperature": self.temperature,
             "top_p": self.top_p,
-            "prompts": [system_prompt for i in self.n_choices],
+            "prompts": [system_prompt for i in range(self.n_choices)],
             "presence_penalty": self.presence_penalty,
             "repitition_penalty": self.frequency_penalty
         }
 
         if self.max_generation_token is not None:
-            payload["max_tokens"] = self.max_generation_token
+            payload["max_new_tokens"] = self.max_generation_token
         if self.stop_sequence is not None:
             payload["stop"] = self.stop_sequence
         if self.logit_bias is not None:
@@ -160,19 +134,48 @@ class PlayGroundClient(BaseLLMModel):
 
         logging.info("wtf")
 
-        with retrieve_proxy():
-            try:
-                response = requests.post(
-                    "https://create.mtkresearch.com/llm/api/v2/tasks",
-                    headers=headers,
-                    json=payload,
-                    stream=stream,
-                    timeout=timeout,
-                )
-            except:
-                return None
+        response = requests.post(
+            "https://create.mtkresearch.com/llm/api/v2/tasks",
+            headers=headers,
+            json=payload,
+            stream=stream,
+            timeout=timeout,
+        )
+
+        def fetch_task_with_backoff(uuid: str, api_key: str, retry_options: Dict[str, int]) -> requests.Response:
+            retries = 0
+            logging.info("fetch_task_with_backoff")
+
+            def try_fetch() -> requests.Response:
+                nonlocal retries
+                try:
+                    headers = {
+                        'accept': 'application/json',
+                        'Authorization': f'Bearer {api_key}'
+                    }
+                    response = requests.get(f'https://create.mtkresearch.com/llm/api/v2/tasks/{uuid}', headers=headers)
+                    json_response = response.json()
+                    if json_response['task']['status'] == 'READY':
+                        return 
+                    else:
+                        if retries < retry_options['maxNumberOfRetry']:
+                            retries += 1
+                            wait_time = min(retry_options['initialDelay'] * 2 ** (retries - 1), retry_options['maxDelay'])
+                            time.sleep(wait_time)
+                            return try_fetch()
+                        else:
+                            raise Exception('Max number of retries reached')
+                except Exception as error:
+                    raise error
+
+            return try_fetch()
+
+        logging.info("wtf2")
+        logging.info(response)
 
         response = response.json()
+        logging.info(response)
+
         retry_options = {'maxNumberOfRetry': 5, 'initialDelay': 1, 'maxDelay': 30}
         response = fetch_task_with_backoff(response["task"]["uuid"], openai_api_key, retry_options)
 
