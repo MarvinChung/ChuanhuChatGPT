@@ -197,7 +197,10 @@ class BaseLLMModel:
         old_inputs = None
         display_reference = []
         limited_context = False
+
         if files:
+            logging.info("A")
+
             limited_context = True
             old_inputs = inputs
             msg = " 加載索引中... (這可能需要幾分鐘)"
@@ -244,6 +247,8 @@ class BaseLLMModel:
                 .replace("{reply_language}", reply_language)
             )
         elif use_websearch:
+            logging.info("B")
+
             limited_context = True
             search_results = ddg(inputs, max_results=5)
             old_inputs = inputs
@@ -265,12 +270,12 @@ class BaseLLMModel:
             )
         else:
             display_reference = ""
-
         if (
             self.need_api_key and
             self.api_key is None
             and not shared.state.multi_api_key
         ):
+            logging.info("fail1")
             status_text = STANDARD_ERROR_MSG + NO_APIKEY_MSG
             logging.info(status_text)
             chatbot.append((inputs, ""))
@@ -283,15 +288,19 @@ class BaseLLMModel:
             yield chatbot + [(inputs, "")], status_text
             return
         elif len(inputs.strip()) == 0:
+            logging.info("fail2")
             status_text = STANDARD_ERROR_MSG + NO_INPUT_MSG
             logging.info(status_text)
             yield chatbot + [(inputs, "")], status_text
             return
 
         self.history.append(construct_user(inputs))
+        logging.info("C")
 
         try:
             if stream:
+                logging.info("D")
+
                 logging.debug("使用stream傳輸")
                 iter = self.stream_next_chatbot(
                     inputs,
@@ -302,6 +311,8 @@ class BaseLLMModel:
                 for chatbot, status_text in iter:
                     yield chatbot, status_text
             else:
+                logging.info("E")
+
                 logging.debug("不用stream傳輸")
                 chatbot, status_text = self.next_chatbot_at_once(
                     inputs,

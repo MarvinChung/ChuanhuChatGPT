@@ -25,6 +25,10 @@ from .config import retrieve_proxy
 from modules import config
 from .base_model import BaseLLMModel, ModelType
 
+import asyncio
+import requests
+from typing import Dict
+
 class PlayGroundClient(BaseLLMModel):
     def __init__(
         self,
@@ -45,6 +49,7 @@ class PlayGroundClient(BaseLLMModel):
         self._refresh_header()
 
     def get_answer_stream_iter(self):
+        logging.info("hello")
         response = self._get_response(stream=True)
         if response is not None:
             iter = self._decode_chat_response(response)
@@ -57,9 +62,9 @@ class PlayGroundClient(BaseLLMModel):
 
     def get_answer_at_once(self):
         response = self._get_response()
-        response = json.loads(response.text)
-        content = response["choices"][0]["message"]["content"]
-        total_token_count = response["usage"]["total_tokens"]
+        response = response.json()
+        content = response["task"]["outputs"][0]["text"]
+        total_token_count = -1
         return content, total_token_count
 
     def count_token(self, user_input):
@@ -84,8 +89,37 @@ class PlayGroundClient(BaseLLMModel):
         logging.info(msg)
         return msg
 
+    def fetch_task_with_backoff(uuid: str, api_key: str, retry_options: Dict[str, int]) -> requests.Response:
+        retries = 0
+        logging.info("fetch_task_with_backoff")
+
+        def try_fetch() -> requests.Response:
+            nonlocal retries
+            try:
+                headers = {
+                    'accept': 'application/json',
+                    'Authorization': f'Bearer {api_key}'
+                }
+                response = requests.get(f'https://create.mtkresearch.com/llm/api/v2/tasks/{uuid}', headers=headers)
+                json_response = response.json()
+                if json_response['task']['status'] == 'READY':
+                    return 
+                else:
+                    if retries < retry_options['maxNumberOfRetry']:
+                        retries += 1
+                        wait_time = min(retry_options['initialDelay'] * 2 ** (retries - 1), retry_options['maxDelay'])
+                        time.sleep(wait_time)
+                        return try_fetch()
+                    else:
+                        raise Exception('Max number of retries reached')
+            except Exception as error:
+                raise error
+
+        return try_fetch()
+
     @shared.state.switching_api_key  # 在不开启多账号模式的时候，这个装饰器不会起作用
     def _get_response(self, stream=False):
+        logging.info("hello get response")
         openai_api_key = self.api_key
         system_prompt = self.system_prompt
         history = self.history
@@ -95,6 +129,8 @@ class PlayGroundClient(BaseLLMModel):
             "Authorization": f"Bearer {openai_api_key}",
         }
 
+        logging.info(system_prompt)
+
         if system_prompt is not None:
             history = [construct_system(system_prompt), *history]
 
@@ -103,7 +139,7 @@ class PlayGroundClient(BaseLLMModel):
             "model_object": "text completion",
             "temperature": self.temperature,
             "top_p": self.top_p,
-            "prompts": self.n_choices,
+            "prompts": [system_prompt for i in self.n_choices],
             "presence_penalty": self.presence_penalty,
             "repitition_penalty": self.frequency_penalty
         }
@@ -122,14 +158,12 @@ class PlayGroundClient(BaseLLMModel):
         else:
             timeout = TIMEOUT_ALL
 
-        # 如果有自定义的api-host，使用自定义host发送请求，否则使用默认设置发送请求
-        if shared.state.completion_url != COMPLETION_URL:
-            logging.info(f"使用自定義API URL: {shared.state.completion_url}")
+        logging.info("wtf")
 
         with retrieve_proxy():
             try:
                 response = requests.post(
-                    shared.state.completion_url,
+                    "https://create.mtkresearch.com/llm/api/v2/tasks",
                     headers=headers,
                     json=payload,
                     stream=stream,
@@ -137,6 +171,11 @@ class PlayGroundClient(BaseLLMModel):
                 )
             except:
                 return None
+
+        response = response.json()
+        retry_options = {'maxNumberOfRetry': 5, 'initialDelay': 1, 'maxDelay': 30}
+        response = fetch_task_with_backoff(response["task"]["uuid"], openai_api_key, retry_options)
+
         return response
 
     def _refresh_header(self):
@@ -163,6 +202,7 @@ class PlayGroundClient(BaseLLMModel):
 
     def _decode_chat_response(self, response):
         error_msg = ""
+        logging.info(response)
         for chunk in response.iter_lines():
             if chunk:
                 chunk = chunk.decode()
